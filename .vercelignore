@@ -1,0 +1,11 @@
+.git
+.pytest_cache
+ppe_monitoring
+pytest.ini
+**/__pycache__
+**/*.pyc
+**/*.pt
+**/*.db
+**/evidence
+**/outputs
+

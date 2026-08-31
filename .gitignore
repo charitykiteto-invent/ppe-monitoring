@@ -1,0 +1,22 @@
+.env
+.env.*
+!.env.example
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Runtime data and generated evidence
+ppe_monitoring/data/*.db
+ppe_monitoring/evidence/*
+!ppe_monitoring/evidence/.gitkeep
+ppe_monitoring/outputs/*
+!ppe_monitoring/outputs/.gitkeep
+
+# Downloaded model weights are restored by scripts/download_models.py
+ppe_monitoring/models/*.pt
+!ppe_monitoring/models/.gitkeep
+
+# Vercel local metadata
+.vercel/

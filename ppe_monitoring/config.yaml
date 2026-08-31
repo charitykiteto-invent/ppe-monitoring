@@ -1,0 +1,58 @@
+models:
+  ppe_model: models/ppe_model.pt
+  pose_model: models/pose_model.pt
+  inference_backend: pytorch  # pytorch, onnx, tensorrt, or auto
+  tracker: bytetrack.yaml
+  device: null
+
+camera:
+  source: 0
+  reconnect_seconds: 5
+  reconnect_attempts: 5
+
+detection:
+  ppe_confidence: 0.45
+  person_confidence: 0.50
+  keypoint_confidence: 0.40
+  nms_iou: 0.50
+  helmet_head_overlap: 0.30
+  vest_torso_overlap: 0.40
+  head_region: [0.00, 0.32]
+  torso_region: [0.25, 0.75]
+  show_ppe_boxes: true
+
+tracking:
+  iou_threshold: 0.30
+  history_frames: 10
+  confirmation_frames: 6
+  lost_track_timeout: 30
+
+arduino:
+  enabled: true
+  port: auto
+  baud_rate: 115200
+  heartbeat_seconds: 2
+  reconnect_seconds: 3
+  acknowledgement_timeout_seconds: 1
+
+dashboard:
+  host: 0.0.0.0
+  port: 8000
+  save_video: false
+  video_path: outputs/annotated.mp4
+  debug_regions: false
+  auto_start: true
+  native_window: false
+
+events:
+  sqlite_path: data/ppe_events.db
+  save_evidence: true
+  evidence_dir: evidence
+  cooldown_seconds: 10
+
+cloud:
+  enabled: false
+  url: https://cretvvkajdrqyvpzhujj.supabase.co
+  service_key_env: SUPABASE_SERVICE_ROLE_KEY
+  status_interval_seconds: 2
+  request_timeout_seconds: 5
