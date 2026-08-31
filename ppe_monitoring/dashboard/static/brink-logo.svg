@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="154" height="48" viewBox="0 0 154 48" role="img" aria-labelledby="title desc">
+  <title id="title">BRINK by Invent</title>
+  <desc id="desc">Four blue rounded squares followed by BRINK by Invent</desc>
+  <rect width="154" height="48" rx="10" fill="#fff"/>
+  <rect x="8" y="8" width="13" height="13" rx="4" fill="#329CF2"/>
+  <rect x="23" y="8" width="11" height="11" rx="3.5" fill="#0879D8"/>
+  <rect x="8" y="23" width="11" height="11" rx="3.5" fill="#65C8F8"/>
+  <rect x="21" y="21" width="13" height="13" rx="4" fill="#218CE8"/>
+  <text x="42" y="23" fill="#0C203D" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="17" font-weight="800" letter-spacing=".4">BRINK</text>
+  <text x="43" y="35" fill="#5D6B7E" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="7.5" font-weight="600">By Invent</text>
+</svg>

@@ -9,9 +9,9 @@
 </head>
 <body data-page="analytics">
   <header class="topbar">
-    <a class="brand" href="/" aria-label="PPE Safety home"><span class="brand-mark">P</span><span><strong>PPE Safety</strong><small>EDGE OPERATIONS</small></span></a>
+    <a class="brand" href="/" aria-label="BRINK PPE Safety home"><img src="/static/brink-logo.svg" alt="BRINK by Invent"><span class="product-name"><strong>PPE Safety</strong><small>EDGE OPERATIONS</small></span></a>
     <nav class="primary-nav" aria-label="Primary navigation"><a href="/">Live monitor</a><a class="active" href="/analytics">Analytics</a></nav>
-    <div class="top-actions"><div class="health"><span class="indicator" id="camera-indicator">Camera</span><span class="indicator" id="model-indicator">AI model</span></div><button class="icon-button" id="theme-toggle" aria-label="Toggle color theme"><span class="theme-icon">☾</span></button></div>
+    <div class="top-actions"><div class="health"><span class="indicator" id="camera-indicator">Camera</span><span class="indicator" id="model-indicator">AI model</span></div><button class="theme-toggle" id="theme-toggle" aria-label="Toggle color theme"><span class="theme-icon">☾</span><span class="theme-label">Dark mode</span></button></div>
   </header>
   <main>
     <section class="page-intro"><div><span class="eyebrow">Safety intelligence</span><h1>Compliance analytics</h1><p>Today’s event history, patterns and role distribution.</p></div><div class="live-time"><span>Last refreshed</span><time id="clock">--</time></div></section>
@@ -25,7 +25,7 @@
       <article class="panel chart-panel wide"><div><span class="eyebrow">Trend</span><h2>Compliance rate by minute</h2><p>Share of recorded events that were fully compliant.</p></div><div class="legend"><span class="legend-dot green"></span>Compliance %</div><canvas id="rate-chart"></canvas><p class="chart-empty" id="rate-empty">No events recorded today</p></article>
       <article class="panel chart-panel"><div><span class="eyebrow">Risk</span><h2>Violations by reason</h2><p>Which missing PPE combinations occur most.</p></div><canvas id="violation-chart"></canvas><p class="chart-empty" id="violation-empty">No violations recorded today</p></article>
       <article class="panel chart-panel"><div><span class="eyebrow">Volume</span><h2>Hourly event outcomes</h2><p>Compliant versus non-compliant records.</p></div><div class="legend"><span class="legend-dot green"></span>Compliant <span class="legend-dot red"></span>Non-compliant</div><canvas id="hourly-chart"></canvas><p class="chart-empty" id="hourly-empty">No events recorded today</p></article>
-      <article class="panel chart-panel"><div><span class="eyebrow">Team</span><h2>Helmet roles recorded</h2><p>Role mix among events with detected helmets.</p></div><canvas id="role-chart"></canvas><p class="chart-empty" id="role-empty">No helmet roles recorded today</p></article>
+      <article class="panel chart-panel"><div><span class="eyebrow">Team</span><h2>Helmet roles recorded</h2><p>Role mix among events with detected helmets.</p></div><div class="legend"><span class="legend-dot yellow"></span>Supervisor <span class="legend-dot blue"></span>Worker</div><canvas id="role-chart"></canvas><p class="chart-empty" id="role-empty">No helmet roles recorded today</p></article>
     </section>
     <section class="panel events-panel">
       <div class="panel-heading"><div><span class="eyebrow">Audit trail</span><h2>Compliance event history</h2><p>Filtered state changes and cooldown summaries. Camera credentials are never stored.</p></div>
