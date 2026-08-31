@@ -21,12 +21,15 @@ python -m ppe_monitoring.scripts.download_models
 
 It inspects the mandatory Hugging Face repository file list, considers actual
 `.pt` files, downloads a candidate, loads it through Ultralytics, prints
-`model.names`, and accepts it only if helmet and vest aliases exist. It then obtains
-`yolo11n-pose.pt`, with `yolov8n-pose.pt` as a compatibility fallback. Success
-means both of these files really exist and load:
+`model.names`, and accepts it only if helmet and vest aliases exist. It also
+downloads and validates the industrial hard-hat fallback from
+`keremberke/yolov8n-hard-hat-detection`, then obtains `yolo11n-pose.pt`, with
+`yolov8n-pose.pt` as a compatibility fallback. Success means all three files
+really exist and load:
 
 ```text
 ppe_monitoring/models/ppe_model.pt
+ppe_monitoring/models/helmet_fallback.pt
 ppe_monitoring/models/pose_model.pt
 ```
 
@@ -36,6 +39,10 @@ are `Gloves`, `Vest`, `goggles`, `helmet`, `mask`, and `safety_shoe`; monitoring
 uses only `Vest` and `helmet`. The script confirms the actual case-insensitive
 names from `model.names` instead of assuming IDs. Review the repository's MIT
 license, PyTorch checkpoint security implications, and accuracy for your site.
+The mandatory six-class model always runs first. The helmet fallback contributes
+only `Hardhat` and `NO-Hardhat` observations; goggles, masks, and other fallback
+classes cannot affect compliance. Both sources must still pass the same
+person-to-head spatial validation and multi-frame confirmation.
 
 ## 1. Windows PowerShell environment
 
@@ -54,8 +61,8 @@ python -m ppe_monitoring.scripts.download_models
 python -m ppe_monitoring.scripts.download_models --verify-only
 ```
 
-The verification command prints the architecture and actual detected PPE class
-names. To replace existing files from the mandatory repository:
+The verification command prints the architecture and actual detected PPE and
+fallback class names. To replace all downloaded model files:
 
 ```powershell
 python -m ppe_monitoring.scripts.download_models --force
@@ -63,6 +70,13 @@ python -m ppe_monitoring.scripts.download_models --force
 
 To use a fine-tuned model, copy it to `ppe_monitoring/models/ppe_model.pt` and run
 `--verify-only`. No detector code changes are required.
+
+To disable the secondary detector for benchmarking, set:
+
+```yaml
+models:
+  helmet_fallback_enabled: false
+```
 
 ## 2. Arduino sketch and safe wiring
 
@@ -297,9 +311,10 @@ Run:
 python -m ppe_monitoring.scripts.download_models --verify-only
 ```
 
-If missing, run without `--verify-only`. If classes lack helmet or vest aliases,
-manually place a validated fine-tuned checkpoint at `models/ppe_model.pt`. A general COCO
-`yolov8n.pt`/`yolo11n.pt` is not a PPE detector and will be rejected.
+If missing, run without `--verify-only`. If primary classes lack helmet or vest
+aliases, manually place a validated fine-tuned checkpoint at
+`models/ppe_model.pt`. The fallback must expose a `Hardhat`/helmet alias. A
+general COCO `yolov8n.pt`/`yolo11n.pt` is not a PPE detector and will be rejected.
 
 ### Camera unavailable
 

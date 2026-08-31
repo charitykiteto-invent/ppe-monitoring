@@ -15,6 +15,8 @@ from ppe_monitoring.detector import canonical_class
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 PPE_REPO = "Tanishjain9/yolov8n-ppe-detection-6classes"
+HELMET_FALLBACK_REPO = "keremberke/yolov8n-hard-hat-detection"
+HELMET_FALLBACK_FILE = "best.pt"
 
 
 def model_names(model: Any) -> list[str]:
@@ -53,6 +55,30 @@ def validate_ppe_model(path: Path, *, smoke_test: bool = True) -> list[str]:
             print(f"PPE smoke inference passed: {detections} detections on a blank 640x640 image; speed_ms={speed}")
         except Exception as exc:
             raise RuntimeError(f"PPE checkpoint loaded but inference smoke test failed: {exc}") from exc
+    return names
+
+
+def validate_helmet_fallback_model(path: Path, *, smoke_test: bool = True) -> list[str]:
+    if not path.is_file():
+        raise FileNotFoundError(f"Helmet fallback model does not exist: {path}")
+    try:
+        from ultralytics import YOLO
+        model = YOLO(str(path))
+    except Exception as exc:
+        raise RuntimeError(f"Helmet fallback checkpoint cannot be loaded: {path}: {exc}") from exc
+    names = model_names(model)
+    canonical = {canonical_class(name) for name in names}
+    if "helmet" not in canonical:
+        raise RuntimeError(f"Helmet fallback checkpoint has classes {names}, missing a helmet/Hardhat alias")
+    print(f"Helmet fallback model.names: {model.names}")
+    if smoke_test:
+        try:
+            import numpy as np
+            sample = np.zeros((640, 640, 3), dtype=np.uint8)
+            model.predict(sample, imgsz=640, conf=0.25, device="cpu", verbose=False)
+            print("Helmet fallback smoke inference passed")
+        except Exception as exc:
+            raise RuntimeError(f"Helmet fallback loaded but inference failed: {exc}") from exc
     return names
 
 
@@ -103,6 +129,29 @@ def download_ppe(destination: Path, force: bool = False) -> list[str]:
     raise RuntimeError("No compatible Ultralytics PPE checkpoint found:\n- " + "\n- ".join(errors))
 
 
+def download_helmet_fallback(destination: Path, force: bool = False) -> list[str]:
+    if destination.exists() and not force:
+        names = validate_helmet_fallback_model(destination)
+        print(f"Helmet fallback model already valid: {destination}")
+        return names
+    try:
+        from huggingface_hub import hf_hub_download
+    except ImportError as exc:
+        raise RuntimeError("huggingface_hub is not installed") from exc
+    cached = Path(hf_hub_download(
+        repo_id=HELMET_FALLBACK_REPO,
+        filename=HELMET_FALLBACK_FILE,
+        repo_type="model",
+    ))
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(".pt.part")
+    shutil.copy2(cached, temporary)
+    temporary.replace(destination)
+    names = validate_helmet_fallback_model(destination)
+    print(f"Helmet fallback saved: {destination} from {HELMET_FALLBACK_REPO}/{HELMET_FALLBACK_FILE}")
+    return names
+
+
 def download_pose(destination: Path, force: bool = False) -> list[str]:
     try:
         from ultralytics import YOLO
@@ -144,16 +193,18 @@ def download_pose(destination: Path, force: bool = False) -> list[str]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Download and verify PPE and pose models")
+    parser = argparse.ArgumentParser(description="Download and verify primary PPE, helmet fallback, and pose models")
     parser.add_argument("--models-dir", type=Path, default=PROJECT_DIR / "models")
     parser.add_argument("--force", action="store_true", help="Re-download and replace valid models")
     parser.add_argument("--verify-only", action="store_true", help="Do not download; validate existing files")
     args = parser.parse_args()
     ppe_path = args.models_dir / "ppe_model.pt"
+    helmet_fallback_path = args.models_dir / "helmet_fallback.pt"
     pose_path = args.models_dir / "pose_model.pt"
     try:
         if args.verify_only:
             print(f"Detected PPE classes: {validate_ppe_model(ppe_path)}")
+            print(f"Detected helmet fallback classes: {validate_helmet_fallback_model(helmet_fallback_path)}")
             from ultralytics import YOLO
             pose = YOLO(str(pose_path))
             if getattr(pose.model, "kpt_shape", None) is None:
@@ -161,9 +212,10 @@ def main() -> int:
             print(f"Pose model valid: {pose_path}")
         else:
             download_ppe(ppe_path, args.force)
+            download_helmet_fallback(helmet_fallback_path, args.force)
             download_pose(pose_path, args.force)
-        if not ppe_path.is_file() or not pose_path.is_file():
-            raise RuntimeError("Model setup did not produce both required files")
+        if not ppe_path.is_file() or not helmet_fallback_path.is_file() or not pose_path.is_file():
+            raise RuntimeError("Model setup did not produce all three required model files")
         return 0
     except Exception as exc:
         print(f"Model setup failed: {exc}", file=sys.stderr)

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from .ppe_detector import ALIASES, PPEDetector, canonical_class, normalize_class_name
+from .ppe_detector import ALIASES, HelmetFallbackDetector, PPEDetector, canonical_class, normalize_class_name
 from .pose_detector import PoseDetector
 
 
@@ -25,6 +25,17 @@ class YoloDetector:
         options = {"device": models.get("device") or None, "iou": float(detection.get("nms_iou", 0.5))}
         self.ppe = PPEDetector(ppe_path, float(detection["ppe_confidence"]), **options)
         self.pose = PoseDetector(pose_path, float(detection["person_confidence"]), models.get("tracker", "bytetrack.yaml"), **options)
+        self.helmet_fallback = None
+        if bool(models.get("helmet_fallback_enabled", False)):
+            fallback_path = str(models.get("helmet_fallback_model", ""))
+            if not fallback_path:
+                raise FileNotFoundError("models.helmet_fallback_model is required when helmet fallback is enabled")
+            self._validate_model_reference(fallback_path, "Helmet fallback")
+            self.helmet_fallback = HelmetFallbackDetector(
+                fallback_path,
+                float(detection.get("helmet_fallback_confidence", 0.25)),
+                **options,
+            )
 
     @staticmethod
     def _validate_model_reference(reference: str, label: str) -> None:
@@ -32,7 +43,13 @@ class YoloDetector:
             raise FileNotFoundError(f"{label} model not found: {reference}. Run: python -m ppe_monitoring.scripts.download_models")
 
     def infer(self, frame: Any):
-        return self.pose.track(frame), self.ppe.predict(frame)
+        people = self.pose.track(frame)
+        ppe = self.ppe.predict(frame)
+        if self.helmet_fallback is not None:
+            fallback = self.helmet_fallback.predict(frame)
+            ppe["helmet"].extend(fallback["helmet"])
+            ppe["no_helmet"].extend(fallback["no_helmet"])
+        return people, ppe
 
 
-__all__ = ["ALIASES", "PPEDetector", "PoseDetector", "YoloDetector", "canonical_class", "normalize_class_name"]
+__all__ = ["ALIASES", "HelmetFallbackDetector", "PPEDetector", "PoseDetector", "YoloDetector", "canonical_class", "normalize_class_name"]

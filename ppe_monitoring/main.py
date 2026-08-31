@@ -41,6 +41,7 @@ def load_config(path: str | Path) -> dict[str, Any]:
     base = config_path.parent
     paths = (
         ("models", "ppe_model"), ("models", "pose_model"),
+        ("models", "helmet_fallback_model"),
         ("dashboard", "video_path"), ("events", "sqlite_path"),
         ("events", "evidence_dir"),
     )

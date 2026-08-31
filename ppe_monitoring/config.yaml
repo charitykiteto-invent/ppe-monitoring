@@ -1,6 +1,8 @@
 models:
   ppe_model: models/ppe_model.pt
   pose_model: models/pose_model.pt
+  helmet_fallback_model: models/helmet_fallback.pt
+  helmet_fallback_enabled: true
   inference_backend: pytorch  # pytorch, onnx, tensorrt, or auto
   tracker: bytetrack.yaml
   device: null
@@ -12,6 +14,7 @@ camera:
 
 detection:
   ppe_confidence: 0.45
+  helmet_fallback_confidence: 0.25
   person_confidence: 0.50
   keypoint_confidence: 0.40
   nms_iou: 0.50
