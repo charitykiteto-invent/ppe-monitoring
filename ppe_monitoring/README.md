@@ -177,8 +177,18 @@ python -m ppe_monitoring.main --source "C:\videos\shift.mp4"
 RTSP:
 
 ```powershell
-python -m ppe_monitoring.main --source "rtsp://username:password@192.168.1.50:554/stream1"
+$env:PPE_CAMERA_URL = "rtsp://username:password@192.168.1.50:554/Preview_01_main"
+python -m ppe_monitoring.main
 ```
+
+Keep the URL in `PPE_CAMERA_URL`; do not put the camera username/password in
+`config.yaml` or pass it on the command line. The application removes credentials
+and URL query values from local events, cloud telemetry, dashboard tables, and
+errors. Existing local SQLite camera values are scrubbed on the next startup.
+For a Reolink RLC-520A, use `/Preview_01_main` for full quality or
+`/Preview_01_sub` when maximum responsiveness matters more than image detail.
+The low-latency reader continuously drains network streams and keeps one latest
+frame, so slow inference cannot build a minutes-long RTSP backlog.
 
 Then open:
 
@@ -247,9 +257,11 @@ green, and no people turns all LEDs off. Visible tracks still inside the configu
 confirmation window show `ANALYZING` and do not trigger a compliance LED prematurely.
 Shutdown and serial disconnection result in all LEDs off.
 
-The dashboard provides current people, compliance breakdown/rate, FPS, today's
-violations, overall state/reason, per-person states, live feed, Arduino status,
-compliance timeline, violation types, hourly counts, and filterable events.
+The live dashboard provides current people, compliance breakdown/rate, FPS,
+helmet roles, overall state/reason, per-person states, live feed, and Arduino
+status. `/analytics` contains the labeled compliance timeline, violation reasons,
+hourly outcome counts, role distribution, and filterable event history. Use the
+header control to switch between persistent light and dark themes.
 All CSS and JavaScript are local; runtime does not need internet access.
 
 ## Events and evidence
@@ -278,6 +290,14 @@ All initial defaults are in `config.yaml`. Important settings:
 - fallback `head_region` and `torso_region`
 - `tracking.history_frames`, `confirmation_frames`, and `lost_track_timeout`
 - `camera.reconnect_seconds`
+- `camera.low_latency`, `rtsp_transport`, and `read_timeout_seconds`
+- `helmet_roles` HSV ranges and `min_color_fraction`
+
+Helmet color is a site-specific role convention: yellow is configured as
+`Supervisor`, blue as `Worker`, and other colors remain unassigned. A role is
+shown only after three consistent frames. Adjust the HSV ranges only with sample
+images from the installed camera and lighting; role classification is not an
+identity or access-control mechanism.
 
 Enable debug overlays:
 

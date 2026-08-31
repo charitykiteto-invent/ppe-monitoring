@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from ..privacy import public_camera_name
+
 
 @dataclass(frozen=True, slots=True)
 class EventRecord:
@@ -22,6 +24,8 @@ class EventRecord:
     helmet_confidence: float | None = None
     vest_confidence: float | None = None
     evidence_path: str | None = None
+    role: str | None = None
+    helmet_color: str | None = None
 
 
 class EventRepository:
@@ -49,11 +53,21 @@ class EventRepository:
                     tracking_id INTEGER NOT NULL, helmet_worn INTEGER NOT NULL,
                     vest_worn INTEGER NOT NULL, status TEXT NOT NULL,
                     reason TEXT NOT NULL, confidence REAL NOT NULL,
-                    helmet_confidence REAL, vest_confidence REAL, evidence_path TEXT
+                    helmet_confidence REAL, vest_confidence REAL, evidence_path TEXT,
+                    role TEXT, helmet_color TEXT
                 )
             """)
+            columns = {row[1] for row in connection.execute("PRAGMA table_info(events)")}
+            if "role" not in columns:
+                connection.execute("ALTER TABLE events ADD COLUMN role TEXT")
+            if "helmet_color" not in columns:
+                connection.execute("ALTER TABLE events ADD COLUMN helmet_color TEXT")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp)")
             connection.execute("CREATE INDEX IF NOT EXISTS idx_events_status ON events(status)")
+            for row in connection.execute("SELECT DISTINCT camera FROM events"):
+                safe = public_camera_name(row[0])
+                if safe != row[0]:
+                    connection.execute("UPDATE events SET camera = ? WHERE camera = ?", (safe, row[0]))
 
     def record(self, event: EventRecord, *, force: bool = False) -> bool:
         key = (event.camera, event.tracking_id)
@@ -69,11 +83,12 @@ class EventRepository:
                     INSERT INTO events (
                         timestamp, camera, tracking_id, helmet_worn, vest_worn,
                         status, reason, confidence, helmet_confidence,
-                        vest_confidence, evidence_path
+                        vest_confidence, evidence_path, role, helmet_color
                     ) VALUES (
                         :timestamp, :camera, :tracking_id, :helmet_worn,
                         :vest_worn, :status, :reason, :confidence,
-                        :helmet_confidence, :vest_confidence, :evidence_path
+                        :helmet_confidence, :vest_confidence, :evidence_path,
+                        :role, :helmet_color
                     )
                 """, values)
             self._last[key] = (state, now)
@@ -126,11 +141,17 @@ class EventRepository:
             total_violations = connection.execute(
                 "SELECT COUNT(*) FROM events WHERE timestamp >= ? AND status != 'COMPLIANT'", (today,)
             ).fetchone()[0]
+            roles = connection.execute("""
+                SELECT COALESCE(role, 'Unassigned') role, COUNT(*) count
+                FROM events WHERE timestamp >= ? AND helmet_worn = 1
+                GROUP BY COALESCE(role, 'Unassigned') ORDER BY count DESC
+            """, (today,)).fetchall()
         return {
             "violations_by_type": [dict(row) for row in violations],
             "hourly": [dict(row) for row in hourly],
             "compliance_timeline": [dict(row) for row in reversed(timeline)],
             "total_violations_today": total_violations,
+            "roles": [dict(row) for row in roles],
         }
 
     @staticmethod

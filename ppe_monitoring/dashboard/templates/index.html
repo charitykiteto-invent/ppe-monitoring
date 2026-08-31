@@ -3,60 +3,46 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>PPE Monitoring</title>
+  <title>Live Monitor · PPE Safety</title>
+  <script>document.documentElement.dataset.theme=localStorage.getItem('ppe-theme')||'dark'</script>
   <link rel="stylesheet" href="/static/styles.css">
 </head>
-<body>
+<body data-page="live">
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">P</span><div><h1>PPE Monitoring</h1><p>EDGE SAFETY OPERATIONS</p></div></div>
-    <div class="health">
-      <span class="indicator" id="camera-indicator">Camera</span>
-      <span class="indicator" id="model-indicator">Model</span>
-      <span class="indicator" id="arduino-indicator">Arduino</span>
-      <time id="clock">--</time>
+    <a class="brand" href="/" aria-label="PPE Safety home"><span class="brand-mark">P</span><span><strong>PPE Safety</strong><small>EDGE OPERATIONS</small></span></a>
+    <nav class="primary-nav" aria-label="Primary navigation"><a class="active" href="/">Live monitor</a><a href="/analytics">Analytics</a></nav>
+    <div class="top-actions">
+      <div class="health"><span class="indicator" id="camera-indicator">Camera</span><span class="indicator" id="model-indicator">AI model</span><span class="indicator" id="arduino-indicator">Arduino</span></div>
+      <button class="icon-button" id="theme-toggle" aria-label="Toggle color theme"><span class="theme-icon">☾</span></button>
       <button id="monitor-toggle" class="control">Start monitoring</button>
     </div>
   </header>
-
   <main>
+    <section class="page-intro"><div><span class="eyebrow">Live operations</span><h1>Worksite safety at a glance</h1><p>Current PPE compliance from the Jetson edge camera.</p></div><div class="live-time"><span class="pulse"></span><span>Live</span><time id="clock">--</time></div></section>
     <section class="kpis">
-      <article><span>People visible</span><strong id="kpi-people">0</strong></article>
-      <article class="green"><span>Fully compliant</span><strong id="kpi-compliant">0</strong></article>
-      <article class="blue"><span>Helmet missing</span><strong id="kpi-helmet">0</strong></article>
-      <article class="blue"><span>Vest missing</span><strong id="kpi-vest">0</strong></article>
-      <article class="red"><span>Both missing</span><strong id="kpi-both">0</strong></article>
-      <article><span>Compliance rate</span><strong id="kpi-rate">0%</strong></article>
-      <article><span>Inference FPS</span><strong id="kpi-fps">0.0</strong></article>
-      <article class="red"><span>Violations today</span><strong id="kpi-violations">0</strong></article>
+      <article><span>People visible</span><strong id="kpi-people">0</strong><small>In the current frame</small></article>
+      <article class="positive"><span>Fully compliant</span><strong id="kpi-compliant">0</strong><small>Helmet and vest</small></article>
+      <article class="yellow"><span>Supervisors</span><strong id="kpi-supervisors">0</strong><small>Yellow helmets</small></article>
+      <article class="blue"><span>Workers</span><strong id="kpi-workers">0</strong><small>Blue helmets</small></article>
+      <article class="warning"><span>Helmet missing</span><strong id="kpi-helmet">0</strong><small>Confirmed tracks</small></article>
+      <article class="warning"><span>Vest missing</span><strong id="kpi-vest">0</strong><small>Confirmed tracks</small></article>
+      <article><span>Compliance rate</span><strong id="kpi-rate">0%</strong><small>Visible confirmed people</small></article>
+      <article class="danger"><span>Violations today</span><strong id="kpi-violations">0</strong><small><span id="kpi-fps">0.0</span> inference FPS</small></article>
     </section>
-
     <section class="monitor-grid">
       <article class="panel camera-panel">
-        <div class="panel-heading"><div><h2>Live camera</h2><p id="camera-message">Waiting for monitoring to start</p></div><span class="live-chip">LIVE</span></div>
-        <div class="video-shell"><img id="video-feed" src="/video-feed" alt="Live annotated PPE camera feed"><div id="video-placeholder">No camera frame</div></div>
+        <div class="panel-heading"><div><span class="eyebrow">Camera 01</span><h2>Live annotated feed</h2><p id="camera-message">Waiting for monitoring to start</p></div><span class="live-chip"><span class="pulse"></span>Live edge feed</span></div>
+        <div class="video-shell"><img id="video-feed" src="/video-feed" alt="Live annotated PPE camera feed"><div id="video-placeholder">Waiting for the first camera frame</div></div>
       </article>
       <aside class="side-column">
-        <article class="panel overall"><span>Overall site status</span><strong id="overall-status">OFF</strong><p id="overall-message">No person detected</p></article>
-        <article class="panel"><div class="panel-heading"><div><h2>People in view</h2><p>Confirmed person-level PPE state</p></div></div><div id="people-list" class="people-list"><p class="empty">No tracked people</p></div></article>
-        <article class="panel led"><span>Arduino output</span><div id="led-lamp" class="lamp off"></div><strong id="led-state">OFF</strong><small id="led-port">Not connected</small></article>
+        <article class="panel overall" data-state="OFF"><span>Overall site status</span><strong id="overall-status">NO ACTIVE STATUS</strong><p id="overall-message">No person detected</p></article>
+        <article class="panel people-panel"><div class="panel-heading"><div><span class="eyebrow">Detected team</span><h2>People in view</h2><p>Role and person-level PPE state</p></div></div><div id="people-list" class="people-list"><p class="empty">No tracked people</p></div></article>
+        <article class="panel led"><div><span>Safety beacon</span><strong id="led-state">OFF</strong><small id="led-port">Not connected</small></div><div id="led-lamp" class="lamp off"></div></article>
+        <a class="analytics-link" href="/analytics"><span><strong>Open safety analytics</strong><small>Trends, charts and event history</small></span><b>→</b></a>
       </aside>
-    </section>
-
-    <section class="analytics-grid">
-      <article class="panel chart-panel"><h2>Compliance rate over time</h2><canvas id="rate-chart"></canvas></article>
-      <article class="panel chart-panel"><h2>Violations by type</h2><canvas id="violation-chart"></canvas></article>
-      <article class="panel chart-panel"><h2>Hourly compliant vs non-compliant</h2><canvas id="hourly-chart"></canvas></article>
-    </section>
-
-    <section class="panel events-panel">
-      <div class="panel-heading"><div><h2>Recent compliance events</h2><p>State changes and cooldown summaries</p></div>
-        <div class="filters"><select id="event-status"><option value="">All events</option><option>COMPLIANT</option><option>PARTIAL PPE</option><option>NO PPE</option></select><input id="event-start" type="datetime-local"><input id="event-end" type="datetime-local"><button id="apply-filter">Apply</button></div>
-      </div>
-      <div class="table-wrap"><table><thead><tr><th>Timestamp</th><th>Person</th><th>Helmet</th><th>Vest</th><th>Status</th><th>Confidence</th><th>Camera</th></tr></thead><tbody id="events-body"></tbody></table></div>
     </section>
   </main>
   <div id="toast" role="status"></div>
   <script src="/static/dashboard.js"></script>
 </body>
 </html>
-

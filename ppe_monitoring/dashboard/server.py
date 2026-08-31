@@ -68,6 +68,10 @@ def create_app(
     async def index(request: Request) -> HTMLResponse:
         return templates.TemplateResponse(request=request, name="index.html", context={})
 
+    @app.get("/analytics", response_class=HTMLResponse)
+    async def analytics_page(request: Request) -> HTMLResponse:
+        return templates.TemplateResponse(request=request, name="analytics.html", context={})
+
     @app.get("/api/status")
     async def status() -> dict[str, Any]:
         data = state.snapshot()
@@ -120,4 +124,3 @@ def create_app(
             return
 
     return app
-

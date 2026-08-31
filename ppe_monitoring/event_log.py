@@ -5,6 +5,8 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from .privacy import public_camera_name
+
 from .compliance import ComplianceResult
 
 
@@ -14,7 +16,7 @@ class EventLogger:
     def __init__(self, path: str | Path, camera_source: str, periodic_seconds: float = 60.0):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.camera_source = camera_source
+        self.camera_source = public_camera_name(camera_source)
         self.periodic_seconds = periodic_seconds
         self.last: dict[int, tuple[tuple[bool, bool], float]] = {}
         if not self.path.exists():
@@ -35,4 +37,3 @@ class EventLogger:
             ))
         self.last[track_id] = (state, now)
         return True
-

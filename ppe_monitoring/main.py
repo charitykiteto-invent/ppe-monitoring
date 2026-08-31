@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 import threading
 import time
@@ -13,10 +14,13 @@ import yaml
 
 from .association import Detection, PersonPPE, associate_ppe, center, overlap_fraction
 from .compliance import PENDING, ComplianceResult, evaluate, led_state
+from .camera_stream import is_network_stream, open_capture
 from .cloud.supabase_publisher import SupabasePublisher
 from .dashboard.server import DashboardState, create_app
 from .detector import YoloDetector
 from .hardware.arduino_controller import ArduinoController, MockArduinoController
+from .helmet_roles import HelmetRole, HelmetRoleSmoother, classify_helmet_role
+from .privacy import public_camera_name
 from .storage.event_repository import EventRecord, EventRepository
 from .tracker import IoUTracker, TemporalSmoother
 
@@ -52,14 +56,6 @@ def load_config(path: str | Path) -> dict[str, Any]:
     return config
 
 
-def open_capture(source: int | str) -> cv2.VideoCapture:
-    capture = cv2.VideoCapture(source)
-    if not capture.isOpened():
-        capture.release()
-        raise RuntimeError(f"Unable to open camera/video source: {source}")
-    return capture
-
-
 def _box(box: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
     return tuple(map(int, box))  # type: ignore[return-value]
 
@@ -89,26 +85,38 @@ def _person_label(result: ComplianceResult) -> str:
 
 def annotate(
     frame: Any, associations: list[PersonPPE], smoothed: dict[int, Any],
+    roles: dict[int, HelmetRole],
     *, fps: float, show_ppe: bool, debug: bool,
-) -> tuple[dict[str, Any], list[dict[str, Any]], list[tuple[PersonPPE, ComplianceResult]]]:
-    counts = {"compliant": 0, "helmet_missing": 0, "vest_missing": 0, "both_missing": 0}
+) -> tuple[dict[str, Any], list[dict[str, Any]], list[tuple[PersonPPE, ComplianceResult, HelmetRole]]]:
+    counts = {"compliant": 0, "helmet_missing": 0, "vest_missing": 0, "both_missing": 0, "supervisors": 0, "workers": 0}
     people_data: list[dict[str, Any]] = []
-    confirmed: list[tuple[PersonPPE, ComplianceResult]] = []
+    confirmed: list[tuple[PersonPPE, ComplianceResult, HelmetRole]] = []
     for item in associations:
         track_id = int(item.person.track_id or -1)
         state = smoothed[track_id]
+        helmet_role = roles.get(track_id, HelmetRole(None, None, 0.0))
+        if helmet_role.role == "Supervisor":
+            counts["supervisors"] += 1
+        elif helmet_role.role == "Worker":
+            counts["workers"] += 1
         if state.confirmed:
             result = evaluate(state.helmet_worn, state.vest_worn)
             color, label, reason = result.color, _person_label(result), result.reason
             counts[result.category] += 1
-            confirmed.append((item, result))
+            confirmed.append((item, result, helmet_role))
             color_name = "green" if result.category == "compliant" else "red" if result.category == "both_missing" else "blue"
         else:
             color, label, reason, color_name = PENDING, "ANALYZING", "Collecting observations", "pending"
         x1, y1, x2, y2 = _box(item.person.box)
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
-        draw_label(frame, f"Person {track_id} - {label}", (x1, max(20, y1)), color)
-        people_data.append({"tracking_id": track_id, "label": label, "reason": reason, "color": color_name, "confidence": round(item.confidence, 3)})
+        role_label = helmet_role.role or ("Identifying role" if item.helmet_worn else "No helmet role")
+        draw_label(frame, f"Person {track_id} - {role_label} - {label}", (x1, max(20, y1)), color)
+        people_data.append({
+            "tracking_id": track_id, "label": label, "reason": reason,
+            "color": color_name, "confidence": round(item.confidence, 3),
+            "role": helmet_role.role, "helmet_color": helmet_role.color,
+            "role_confidence": round(helmet_role.confidence, 3),
+        })
         if show_ppe:
             if item.helmet:
                 draw_detection(frame, item.helmet, (255, 190, 0), "helmet")
@@ -127,7 +135,7 @@ def annotate(
                     dc, rc = center(detection.box), center(region)
                     cv2.line(frame, tuple(map(int, dc)), tuple(map(int, rc)), (255, 255, 255), 1)
                     cv2.putText(frame, f"{kind} overlap {overlap_fraction(detection.box, region):.2f} conf {detection.confidence:.2f}", (x1, min(y2 - 6, int(dc[1]) + 14)), cv2.FONT_HERSHEY_SIMPLEX, 0.36, (255, 255, 255), 1)
-    confirmed_count = sum(counts.values())
+    confirmed_count = sum(counts[key] for key in ("compliant", "helmet_missing", "vest_missing", "both_missing"))
     summary = {
         "total": len(associations), **counts,
         "compliance_rate": round(100 * counts["compliant"] / confirmed_count, 1) if confirmed_count else 0.0,
@@ -144,7 +152,11 @@ def annotate(
 class MonitoringEngine:
     def __init__(self, config: dict[str, Any], state: DashboardState, repository: EventRepository, arduino: Any, publisher: SupabasePublisher, source_override: str | None = None):
         self.config, self.state, self.repository, self.arduino, self.publisher = config, state, repository, arduino, publisher
-        self.source = parse_source(source_override if source_override is not None else config["camera"]["source"])
+        camera_config = config["camera"]
+        source_env = str(camera_config.get("source_env", "PPE_CAMERA_URL"))
+        configured_source = os.environ.get(source_env) or camera_config["source"]
+        self.source = parse_source(source_override if source_override is not None else configured_source)
+        self.camera_name = public_camera_name(self.source)
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
@@ -168,7 +180,7 @@ class MonitoringEngine:
         if self._thread:
             self._thread.join(timeout)
 
-    def _writer(self, capture: cv2.VideoCapture) -> cv2.VideoWriter | None:
+    def _writer(self, capture: Any) -> cv2.VideoWriter | None:
         if not self.config["dashboard"]["save_video"]:
             return None
         path = Path(self.config["dashboard"]["video_path"])
@@ -191,8 +203,8 @@ class MonitoringEngine:
             return {"state": state, "message": "At least one person is missing one PPE item"}
         return {"state": state, "message": "All visible confirmed people are compliant"}
 
-    def _record(self, frame: Any, item: PersonPPE, result: ComplianceResult) -> None:
-        camera = str(self.source)
+    def _record(self, frame: Any, item: PersonPPE, result: ComplianceResult, helmet_role: HelmetRole) -> None:
+        camera = self.camera_name
         track_id = int(item.person.track_id)
         if not self.repository.should_record(camera, track_id, result.helmet_worn, result.vest_worn):
             return
@@ -209,6 +221,7 @@ class MonitoringEngine:
             result.helmet_worn, result.vest_worn, result.status, result.reason,
             item.confidence, item.helmet.confidence if item.helmet else None,
             item.vest.confidence if item.vest else None, evidence_path,
+            helmet_role.role, helmet_role.color,
         )
         self.repository.record(event, force=True)
         self.publisher.publish_event(event)
@@ -220,18 +233,23 @@ class MonitoringEngine:
         try:
             detector = YoloDetector(self.config)
             self.state.update(model_status="ready")
-            capture = open_capture(self.source)
+            capture = open_capture(self.source, self.config["camera"])
             self.state.update(camera_connected=True)
             writer = self._writer(capture)
             detection, tracking = self.config["detection"], self.config["tracking"]
             fallback = IoUTracker(tracking["iou_threshold"], tracking["lost_track_timeout"])
             smoother = TemporalSmoother(tracking["history_frames"], tracking["confirmation_frames"], tracking["lost_track_timeout"])
+            role_config = self.config.get("helmet_roles", {})
+            role_smoother = HelmetRoleSmoother(
+                role_config.get("history_frames", 8), role_config.get("confirmation_frames", 3),
+                tracking["lost_track_timeout"],
+            )
             previous, fps = time.perf_counter(), 0.0
             failed = 0
             while not self._stop.is_set():
                 ok, frame = capture.read()
                 if not ok:
-                    is_live = isinstance(self.source, int) or str(self.source).lower().startswith(("rtsp://", "http://", "https://"))
+                    is_live = isinstance(self.source, int) or is_network_stream(self.source)
                     if not is_live:
                         break
                     failed += 1
@@ -241,7 +259,7 @@ class MonitoringEngine:
                         raise RuntimeError(f"Camera remained unavailable after {failed} attempts")
                     if self._stop.wait(self.config["camera"]["reconnect_seconds"]):
                         break
-                    capture = open_capture(self.source)
+                    capture = open_capture(self.source, self.config["camera"])
                     self.state.update(camera_connected=True, error=None)
                     continue
                 failed = 0
@@ -255,19 +273,27 @@ class MonitoringEngine:
                     keypoint_confidence=detection["keypoint_confidence"], no_helmets=ppe["no_helmet"], no_vests=ppe["no_vest"],
                 )
                 smoothed = smoother.update((int(item.person.track_id), item.helmet_worn, item.vest_worn) for item in associations)
+                role_states = role_smoother.update(
+                    (
+                        int(item.person.track_id),
+                        classify_helmet_role(frame, item.helmet.box, role_config)
+                        if item.helmet_worn and item.helmet else HelmetRole(None, None, 0.0),
+                    )
+                    for item in associations
+                )
                 now = time.perf_counter()
                 instant = 1 / max(now - previous, 1e-9)
                 fps = instant if not fps else .9 * fps + .1 * instant
                 previous = now
-                summary, people_data, confirmed = annotate(frame, associations, smoothed, fps=fps, show_ppe=detection["show_ppe_boxes"], debug=self.config["dashboard"]["debug_regions"])
-                results = [result for _, result in confirmed]
+                summary, people_data, confirmed = annotate(frame, associations, smoothed, role_states, fps=fps, show_ppe=detection["show_ppe_boxes"], debug=self.config["dashboard"]["debug_regions"])
+                results = [result for _, result, _ in confirmed]
                 overall = self._overall(results, len(associations))
                 self.arduino.set_state(overall["state"])
-                for item, result in confirmed:
-                    self._record(frame, item, result)
+                for item, result, helmet_role in confirmed:
+                    self._record(frame, item, result, helmet_role)
                 self.state.update(fps=fps, people=people_data, summary=summary, overall=overall, arduino=self.arduino.status, error=None)
                 self.publisher.publish_status({
-                    "camera": str(self.source), "camera_connected": True,
+                    "camera": self.camera_name, "camera_connected": True,
                     "model_status": "ready", "fps": round(fps, 3),
                     "people": people_data, "summary": summary, "overall": overall,
                     "arduino": self.arduino.status,
@@ -342,7 +368,10 @@ def main() -> int:
         if config["dashboard"].get("auto_start", True) and not args.no_auto_start:
             system.start()
         try:
-            uvicorn.run(app, host=args.host or config["dashboard"]["host"], port=args.port or config["dashboard"]["port"], log_level="info")
+            uvicorn.run(
+                app, host=args.host or config["dashboard"]["host"],
+                port=args.port or config["dashboard"]["port"], log_level="warning", access_log=False,
+            )
         finally:
             system.close()
         return 0

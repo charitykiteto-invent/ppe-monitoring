@@ -13,7 +13,14 @@ def test_dashboard_api_responses(tmp_path):
     async def verify():
         transport = httpx.ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
-            assert (await client.get("/")).status_code == 200
+            live = await client.get("/")
+            analytics = await client.get("/analytics")
+            assert live.status_code == 200
+            assert "Worksite safety at a glance" in live.text
+            assert 'id="theme-toggle"' in live.text
+            assert analytics.status_code == 200
+            assert "Compliance rate by minute" in analytics.text
+            assert "Helmet roles recorded" in analytics.text
             response = await client.get("/api/status")
             assert response.status_code == 200
             assert response.json()["summary"]["total"] == 0

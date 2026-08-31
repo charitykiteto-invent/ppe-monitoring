@@ -9,6 +9,10 @@ models:
 
 camera:
   source: 0
+  source_env: PPE_CAMERA_URL
+  low_latency: true
+  rtsp_transport: tcp
+  read_timeout_seconds: 10
   reconnect_seconds: 5
   reconnect_attempts: 5
 
@@ -29,6 +33,22 @@ tracking:
   history_frames: 10
   confirmation_frames: 6
   lost_track_timeout: 30
+
+helmet_roles:
+  enabled: true
+  min_color_fraction: 0.08
+  history_frames: 8
+  confirmation_frames: 3
+  supervisor:
+    label: Supervisor
+    helmet_color: yellow
+    hsv_lower: [15, 80, 80]
+    hsv_upper: [40, 255, 255]
+  worker:
+    label: Worker
+    helmet_color: blue
+    hsv_lower: [90, 70, 50]
+    hsv_upper: [135, 255, 255]
 
 arduino:
   enabled: true

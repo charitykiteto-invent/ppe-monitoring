@@ -11,6 +11,7 @@ from dataclasses import asdict
 from typing import Any
 
 from ..storage.event_repository import EventRecord
+from ..privacy import public_camera_name
 
 
 class SupabasePublisher:
@@ -51,6 +52,11 @@ class SupabasePublisher:
     def publish_event(self, event: EventRecord) -> None:
         payload = asdict(event)
         payload.pop("evidence_path", None)
+        # Keep compatibility with the deployed table until its optional role
+        # columns are migrated. Live status still contains per-person roles.
+        payload.pop("role", None)
+        payload.pop("helmet_color", None)
+        payload["camera"] = public_camera_name(payload["camera"])
         self._enqueue("ppe_events", payload, False)
 
     def publish_status(self, payload: dict[str, Any]) -> None:
@@ -58,6 +64,9 @@ class SupabasePublisher:
         if now - self._last_status < self.status_interval:
             return
         self._last_status = now
+        payload = dict(payload)
+        if "camera" in payload:
+            payload["camera"] = public_camera_name(payload["camera"])
         self._enqueue("ppe_monitor_status?on_conflict=camera", payload, True)
 
     def _enqueue(self, resource: str, payload: dict[str, Any], upsert: bool) -> None:
